@@ -7,7 +7,7 @@ var appConfig = {
   signIn: "/signin",
   signUp: "/signup",
 
-  confAuthorize: true,
+  confAuthorize: false,
   confCrm: false,
   confDriver: false,
   confOcpp: true,
