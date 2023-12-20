@@ -2147,6 +2147,8 @@ namespace Apostol {
 
         void CCSChargingPoint::StartTransaction(const CJSONMessage &Request, CJSONMessage &Response) {
 
+            m_StartTransactionRequest << Request.Payload;
+
             CJSONValue idTagInfo(jvtObject);
 
             idTagInfo.Object().AddPair("status", COCPPMessage::AuthorizationStatusToString(asAccepted));
@@ -2156,6 +2158,12 @@ namespace Apostol {
 
             Values.AddPair("idTagInfo", idTagInfo);
             Values.AddPair("transactionId", IntToString(++nTransactionId));
+            
+            CTransaction transaction = { Identity(), nTransactionId, m_StartTransactionRequest.connectorId ,
+            m_StartTransactionRequest.idTag, m_StartTransactionRequest.timestamp,
+             m_StartTransactionRequest.meterStart, 0,0};
+                        
+             Transactions().push_back(transaction);
         }
         //--------------------------------------------------------------------------------------------------------------
 
@@ -2188,6 +2196,9 @@ namespace Apostol {
         //--------------------------------------------------------------------------------------------------------------
 
         void CCSChargingPoint::StopTransaction(const CJSONMessage &Request, CJSONMessage &Response) {
+
+            m_StopTransactionRequest << Request.Payload;
+
             CJSONValue idTagInfo(jvtObject);
 
             idTagInfo.Object().AddPair("status", COCPPMessage::AuthorizationStatusToString(asAccepted));
@@ -2196,6 +2207,13 @@ namespace Apostol {
             auto& Values = Response.Payload.Object();
 
             Values.AddPair("idTagInfo", idTagInfo);
+
+            for (auto &transaction : Transactions())
+            {
+                if (m_StopTransactionRequest.transactionId == transaction.transactionId)
+                transaction.meterStop = m_StopTransactionRequest.meterStop;
+                transaction.stopDate = m_StopTransactionRequest.timestamp;
+            }            
         }
         //--------------------------------------------------------------------------------------------------------------
 

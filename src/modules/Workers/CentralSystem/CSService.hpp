@@ -137,6 +137,8 @@ extern "C++"
 
                 CJSON GetChargePointList();
 
+                CJSON GetTransactionList(const CString &Value);
+
                 static int CheckError(const CJSON &Json, CString &ErrorMessage, bool RaiseIfError = false);
                 static CHTTPReply::CStatusType ErrorCodeToStatus(int ErrorCode);
 
@@ -148,6 +150,8 @@ extern "C++"
                 void DoChargePoint(CHTTPServerConnection *AConnection, const CString &Identity, const CString &Operation);
 
                 void DoChargePointList(CHTTPServerConnection *AConnection);
+
+                void DoTransactionList(CHTTPServerConnection *AConnection, const CString &Endpoint);
 
                 void DoWebSocket(CHTTPServerConnection *AConnection);
                 void DoAPI(CHTTPServerConnection *AConnection);

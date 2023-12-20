@@ -31,6 +31,8 @@ Author:
 #define OCPP_PROTOCOL_ERROR_MESSAGE "Sender's message does not comply with protocol specification"
 //----------------------------------------------------------------------------------------------------------------------
 
+#include <list>
+
 extern "C++" {
 
 namespace Apostol {
@@ -579,6 +581,17 @@ namespace Apostol {
 
         } CMeterValuesRequest;
 
+        typedef struct CTransaction {
+            CString identity;
+            int transactionId = 0;
+            int connectorId = 0;
+            CString idTag;
+            CDateTime startDate = 0;
+            int meterStart = 0;
+            CDateTime stopDate = 0;
+            int meterStop = 0;
+        } CTransaction;
+    
         //--------------------------------------------------------------------------------------------------------------
 
         //-- CActionHandler --------------------------------------------------------------------------------------------
@@ -1253,6 +1266,7 @@ namespace Apostol {
             CStatusNotificationRequest m_StatusNotificationRequest;
             CDataTransferRequest m_DataTransferRequest;
             CMeterValuesRequest m_MeterValuesRequest;
+            // std::list<CTransaction> m_Transactions;
 
             bool ParseSOAP(const CString &Request, CString &Response);
             bool ParseJSON(const CString &Request, CString &Response);
@@ -1270,6 +1284,12 @@ namespace Apostol {
             const CStatusNotificationRequest &StatusNotificationRequest() const { return m_StatusNotificationRequest; }
             const CDataTransferRequest &DataTransferRequest() const { return m_DataTransferRequest; }
             const CMeterValuesRequest &MeterValuesRequest() const { return m_MeterValuesRequest; }
+
+            std::list<CTransaction> &Transactions() 
+            { 
+                static std::list<CTransaction> m_Transactions;
+                return m_Transactions; 
+            }
 
             void Authorize(const CSOAPMessage &Request, CSOAPMessage &Response);
             void Authorize(const CJSONMessage &Request, CJSONMessage &Response);
@@ -1315,9 +1335,7 @@ namespace Apostol {
 
         public:
 
-            CCSChargingPointManager(): CCollection(this) {
-
-            }
+            CCSChargingPointManager(): CCollection(this) {}
 
             CCSChargingPoint *Add(CWebSocketConnection *AConnection);
 

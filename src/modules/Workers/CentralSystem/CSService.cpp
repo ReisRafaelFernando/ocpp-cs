@@ -25,6 +25,10 @@ Author:
 
 #include "Core.hpp"
 #include "CSService.hpp"
+#include "ChargePoint.hpp"
+
+#include <string>
+
 //----------------------------------------------------------------------------------------------------------------------
 
 #include "jwt.h"
@@ -355,6 +359,39 @@ extern "C++"
 
                 return json;
             }
+
+            CJSON CCSService::GetTransactionList(const CString &Value)
+            {
+                CJSON json;
+                CJSONValue jsonArray(jvtArray);
+
+                auto pPoint = m_PointManager.FindPointByIdentity(Value);
+
+                for (auto const &transaction : pPoint->Transactions())
+                {
+                    if (strcmp(transaction.identity.c_str(), pPoint->Identity().c_str()))
+                    {
+                        continue;
+                    }
+                    CJSONValue jsonTransaction(jvtObject);
+                    TCHAR szDate[25] = {0};
+                    jsonTransaction.Object().AddPair("TransactionId", transaction.transactionId);
+                    jsonTransaction.Object().AddPair("Identity", pPoint->Identity());
+                    jsonTransaction.Object().AddPair("ConnectorId", transaction.connectorId);
+                    jsonTransaction.Object().AddPair("IdTag", transaction.idTag);
+                    jsonTransaction.Object().AddPair("StartDate/Time", DateTimeToStr(transaction.startDate, szDate, sizeof(szDate)));
+                    jsonTransaction.Object().AddPair("StartValue", transaction.meterStart);
+                    jsonTransaction.Object().AddPair("StopDate/Time", DateTimeToStr(transaction.stopDate, szDate, sizeof(szDate)));
+                    jsonTransaction.Object().AddPair("StopValue", transaction.meterStop);
+
+                    jsonArray.Array().Add(jsonTransaction);
+                }
+
+                json.Object().AddPair("TransactionList", jsonArray);
+
+                return json;
+            }
+
             //--------------------------------------------------------------------------------------------------------------
 #ifdef WITH_POSTGRESQL
             void CCSService::DoPostgresQueryExecuted(CPQPollQuery *APollQuery)
@@ -1539,6 +1576,88 @@ extern "C++"
                 Reply.Content = GetChargePointList().ToString();
                 AConnection->SendReply(CHTTPReply::ok);
             }
+
+            void CCSService::DoTransactionList(CHTTPServerConnection *AConnection, const CString &Endpoint)
+            {
+                auto &Reply = AConnection->Reply();
+                const auto &caRequest = AConnection->Request();
+
+                const auto index = m_Endpoints.IndexOfName(Endpoint);
+                if (index == -1)
+                {
+                    ReplyError(AConnection, CHTTPReply::bad_request, CString().Format("Invalid endpoint: %s", Endpoint.c_str()));
+                    return;
+                }
+
+                auto IndexOfName = [](const CFields &Fields, const CString &Name)
+                {
+                    for (int i = 0; i < Fields.Count(); ++i)
+                    {
+                        const auto &field = Fields[i];
+                        if (field.name == Name)
+                            return i;
+                    }
+                    return -1;
+                };
+
+                CJSON Payload;
+                ContentToJson(caRequest, Payload);
+
+                const auto &caFields = m_Endpoints[index].Value();
+                auto &Object = Payload.Object();
+                CString identity = "";
+
+                for (int i = 0; i < Object.Count(); i++)
+                {
+                    const auto &caMember = Object.Members(i);
+                    const auto &caKey = caMember.String();
+
+                    if (IndexOfName(caFields, caKey) == -1)
+                    {
+                        ReplyError(AConnection, CHTTPReply::bad_request, CString().Format("Invalid key: %s", caKey.c_str()));
+                        return;
+                    }
+
+                    const auto &caValue = caMember.Value();
+                    if (caValue.IsNull() || caValue.IsEmpty())
+                    {
+                        Object.Delete(i);
+                        continue;
+                    }
+
+                    if (!strcmp(caKey.c_str(), "identity"))
+                    {
+                        identity = caValue.ToString();
+                        identity = identity.SubString(1, identity.Size() - 2);
+                    }
+                }
+
+                for (int i = 0; i < caFields.Count(); i++)
+                {
+                    const auto &field = caFields[i];
+                    if (field.required && Payload[field.name].IsNull())
+                    {
+                        ReplyError(AConnection, CHTTPReply::bad_request, CString().Format("Not found required key: %s (%s)", field.name.c_str(), field.type.c_str()));
+                        return;
+                    }
+                }
+
+                if (identity.empty())
+                {
+                    ReplyError(AConnection, CHTTPReply::bad_request, CString().Format("Identity not found"));
+                    return;
+                }
+
+                auto pPoint = m_PointManager.FindPointByIdentity(identity);
+                if (pPoint == nullptr)
+                {
+                    ReplyError(AConnection, CHTTPReply::bad_request, CString().Format("Not found Charge Point by Identity: %s", identity.c_str()));
+                    return;
+                }
+
+                Reply.Content = GetTransactionList(identity).ToString();
+                AConnection->SendReply(CHTTPReply::ok);
+            }
             //--------------------------------------------------------------------------------------------------------------
 
             void CCSService::DoAPI(CHTTPServerConnection *AConnection)
@@ -1613,6 +1732,11 @@ extern "C++"
                             else if (caCommand == "ChargePoint" && slPath.Count() == 5)
                             {
                                 DoChargePoint(AConnection, slPath[3], slPath[4]);
+                                return;
+                            }
+                            if (caCommand == "TransactionList" || (caCommand == "CentralSystem" && caAction == "TransactionList"))
+                            {
+                                DoTransactionList(AConnection, caAction);
                                 return;
                             }
                         }
