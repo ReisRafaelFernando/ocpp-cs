@@ -2161,6 +2161,7 @@ extern "C++"
                 {
                     return rssRejected;
                 }
+                // aquii
 
                 return m_Connectors[index].RemoteStopTransaction();
             }
@@ -2550,9 +2551,21 @@ extern "C++"
 
                 for (auto &transaction : Transactions())
                 {
-                    if (m_StopTransactionRequest.transactionId == transaction.transactionId)
+                    if (transaction.meterStop != 0)
+                    {
+                        continue;
+                    }
+                    if (strcmp(transaction.identity.c_str(), Identity().c_str()) != 0)
+                    {
+                        continue;
+                    }
+
+                    // Protection against charge points that send transaction id = 0
+                    if (m_StopTransactionRequest.transactionId == transaction.transactionId || m_StopTransactionRequest.transactionId == 0 )
+                    {
                         transaction.meterStop = m_StopTransactionRequest.meterStop;
-                    transaction.stopDate = m_StopTransactionRequest.timestamp;
+                        transaction.stopDate = m_StopTransactionRequest.timestamp;
+                    }
                 }
             }
             //--------------------------------------------------------------------------------------------------------------
